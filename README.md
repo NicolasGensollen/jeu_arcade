@@ -21,6 +21,7 @@ Chaque niveau sera un fichier texte simple où chaque ligne représente une rang
 | **P**     | Position de départ du Joueur (doit être unique)       |
 | **E**     | Zone d' entrée/sortie (pour passer au niveau suivant) |
 | **.**     | Espace Vide (où le joueur tombe)                      |
+
 Voici la carte du 1er niveau de notre jeu:
 
 ```

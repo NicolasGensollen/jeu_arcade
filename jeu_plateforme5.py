@@ -1,7 +1,9 @@
 from pathlib import Path
 import pygame
 import sys
+from enum import Enum
 
+NOM_DU_JEU = "The Arcade Game"
 ECRAN_LARGEUR, ECRAN_HAUTEUR = 800, 600
 TAILLE_TUILE = 40
 FPS = 60
@@ -15,7 +17,11 @@ IMG_BLOC = "bloc.png"
 IMG_SORTIE = "sortie.png"
 IMG_FOND = "fond.jpg"
 
-CARACTERES_VALIDES = set(['#', 'P', 'E', '.'])
+class ElementDecor(Enum):
+    MUR = "#"
+    JOUEUR = "P"
+    SORTIE = "E"
+    VIDE = "."
 
 Couleur = tuple[int, int, int]
 GRIS: Couleur = (100, 100, 100)
@@ -23,10 +29,10 @@ VERT: Couleur = (0, 200, 0)
 ROUGE: Couleur = (255, 0, 0)
 NOIR: Couleur = (0, 0, 0)
 COULEURS = {
-    '#': GRIS,
-    'E': VERT,
-    'P': ROUGE,
-    '.': NOIR,
+    ElementDecor.MUR: GRIS,
+    ElementDecor.SORTIE: VERT,
+    ElementDecor.JOUEUR: ROUGE,
+    ElementDecor.VIDE: NOIR,
 }
 
 class NiveauErreur(Exception):
@@ -35,12 +41,14 @@ class NiveauErreur(Exception):
 
 class NiveauIntrouvableErreur(NiveauErreur):
     """Levée quand le fichier n'existe pas."""
-    def __init__(self, chemin):
-        super().__init__(f"ERREUR FATALE : Le fichier '{chemin}' est introuvable.")
+    def __init__(self, chemin: str | Path):
+        super().__init__(
+            f"ERREUR FATALE : Le fichier '{chemin}' est introuvable."
+        )
 
 class CaractereInvalideErreur(NiveauErreur):
     """Levée quand un caractère inconnu est lu."""
-    def __init__(self, caractere, ligne, colonne):
+    def __init__(self, caractere: str, ligne: int, colonne: int):
         super().__init__(
             f"ERREUR DE SYNTAXE : Caractère interdit '{caractere}' "
             f"trouvé à la ligne {ligne+1}, colonne {colonne+1}."
@@ -48,7 +56,7 @@ class CaractereInvalideErreur(NiveauErreur):
 
 class PositionJoueurErreur(NiveauErreur):
     """Levée quand le nombre de joueurs 'P' est incorrect."""
-    def __init__(self, compte):
+    def __init__(self, compte: int):
         super().__init__(
             f"ERREUR DE LOGIQUE : Le niveau contient {compte} "
             f"départ(s) de joueur (1 seul requis)."
@@ -56,7 +64,7 @@ class PositionJoueurErreur(NiveauErreur):
 
 class TuileSortieErreur(NiveauErreur):
     """Levée quand le nombre de tuiles de sortie est incorrect."""
-    def __init__(self, compte):
+    def __init__(self, compte: int):
         super().__init__(
             f"ERREUR DE LOGIQUE : Le niveau contient {compte} "
             f"sorties (1 seule requise)."
@@ -68,6 +76,7 @@ joueur = {
     'vitesse_y': 0,
     'au_sol': False
 }
+
 GRAVITE = 1
 VITESSE_SAUT = 15
 VITESSE_MAX_X = 5
@@ -93,10 +102,7 @@ def charger_image(
             return None
         img = pygame.image.load(str(chemin))
         # Optimisation de l'image (convert vs convert_alpha)
-        if alpha:
-            img = img.convert_alpha()
-        else:
-            img = img.convert()
+        img = img.convert_alpha() if alpha else img.convert()
         # Redimensionnement si demandé
         if largeur and hauteur:
             img = pygame.transform.scale(img, (largeur, hauteur))
@@ -106,15 +112,23 @@ def charger_image(
         return None
 
 
-def initialiser_images() -> dict[str, pygame.Surface]:
+def initialiser_images() -> dict[ElementDecor, pygame.Surface]:
     """Charge toutes les images du jeu dans un dictionnaire."""
     images = {}
     DOSSIER_ASSETS.mkdir(exist_ok=True)
     print("--- CHARGEMENT DES IMAGES ---")
-    images['joueur'] = charger_image(IMG_JOUEUR, TAILLE_TUILE, TAILLE_TUILE)
-    images['bloc'] = charger_image(IMG_BLOC, TAILLE_TUILE, TAILLE_TUILE)
-    images['sortie'] = charger_image(IMG_SORTIE, TAILLE_TUILE, TAILLE_TUILE)
-    images['fond'] = charger_image(IMG_FOND, ECRAN_LARGEUR, ECRAN_HAUTEUR, alpha=False)
+    images[ElementDecor.JOUEUR] = charger_image(
+        IMG_JOUEUR, TAILLE_TUILE, TAILLE_TUILE
+    )
+    images[ElementDecor.MUR] = charger_image(
+        IMG_BLOC, TAILLE_TUILE, TAILLE_TUILE
+    )
+    images[ElementDecor.SORTIE] = charger_image(
+        IMG_SORTIE, TAILLE_TUILE, TAILLE_TUILE
+    )
+    images[ElementDecor.VIDE] = charger_image(
+        IMG_FOND, ECRAN_LARGEUR, ECRAN_HAUTEUR, alpha=False
+    )
     print("-----------------------------")
     return images
 
@@ -126,6 +140,7 @@ def initialiser_joueur(x: int, y: int):
     joueur['vitesse_y'] = 0
     joueur['au_sol'] = False
     joueur["direction"] = "droite"
+
 
 def mettre_a_jour_vitesses(touches: dict):
     """Met à jour les vitesses du joueur selon les touches pressées."""
@@ -144,12 +159,14 @@ def mettre_a_jour_vitesses(touches: dict):
     # ne pas traverser les blocs trop vite
     if joueur['vitesse_y'] > VITESSE_MAX_Y:
         joueur['vitesse_y'] = VITESSE_MAX_Y
-    
+
+
 def sauter():
     """Applique un saut si le joueur est au sol."""
     if joueur['au_sol']:
         joueur['vitesse_y'] = -VITESSE_SAUT
         joueur['au_sol'] = False
+
 
 def gerer_collisions_horizontales(niveau: dict):
     """Gère les collisions horizontales avec les tuiles solides du niveau."""
@@ -159,6 +176,7 @@ def gerer_collisions_horizontales(niveau: dict):
                 joueur["rect"].right = tuile.left
             elif joueur["vitesse_x"] < 0: # Collision à gauche
                 joueur["rect"].left = tuile.right
+
 
 def gerer_collisions_verticales(niveau: dict):
     """Gère les collisions verticales avec les tuiles solides du niveau."""
@@ -172,6 +190,7 @@ def gerer_collisions_verticales(niveau: dict):
                 joueur["rect"].top = tuile.bottom
                 joueur["vitesse_y"] = 0
 
+
 def appliquer_physique(niveau: dict, touches: dict):
     """Gère le mouvement et les collisions en séparant les axes."""
     mettre_a_jour_vitesses(touches)
@@ -180,6 +199,7 @@ def appliquer_physique(niveau: dict, touches: dict):
     joueur["rect"].y += joueur["vitesse_y"]
     joueur["au_sol"] = False # On présume qu'on tombe jusqu'à preuve du contraire
     gerer_collisions_verticales(niveau)
+
 
 def creer_tuile(x_grille: int, y_grille: int) -> pygame.Rect:
     """Crée et retourne un objet pygame.Rect pour une tuile."""
@@ -203,15 +223,17 @@ def construire_niveau(donnees_texte: str) -> dict:
     for y, ligne in enumerate(lignes):
         for x, caractere in enumerate(ligne.strip()):
             rect = creer_tuile(x, y)
-            if caractere not in CARACTERES_VALIDES:
+            try:
+                caractere = ElementDecor(caractere)
+            except ValueError:
                 raise CaractereInvalideErreur(caractere, y, x)
             match caractere:
-                case "#":
+                case ElementDecor.MUR:
                     niveau_data['tuiles_sol'].append(rect)
-                case "E":
+                case ElementDecor.SORTIE:
                     niveau_data['tuile_sortie'] = rect
                     compte_sortie += 1
-                case "P":
+                case ElementDecor.JOUEUR:
                     niveau_data['pos_joueur'] = (rect.x, rect.y)
                     compte_joueur += 1
     if compte_joueur != 1:
@@ -234,6 +256,7 @@ def charger_niveau(numero_niveau: int) -> str:
         raise NiveauIntrouvableErreur(chemin_fichier)
     return contenu
 
+
 def afficher_message(
     ecran: pygame.Rect,
     message: str,
@@ -253,7 +276,7 @@ def afficher_message(
 def main():
     pygame.init()
     ecran = pygame.display.set_mode((ECRAN_LARGEUR, ECRAN_HAUTEUR))
-    pygame.display.set_caption("Jeu Arcade")
+    pygame.display.set_caption(NOM_DU_JEU)
     clock = pygame.time.Clock()
     images = initialiser_images()
     niveau_actuel = 1
@@ -264,9 +287,14 @@ def main():
             print(f"\nTentative de chargement du niveau {niveau_actuel}...")
             try:
                 niveau_data = construire_niveau(charger_niveau(niveau_actuel))
-                initialiser_joueur(niveau_data['pos_joueur'][0], niveau_data['pos_joueur'][1])
+                initialiser_joueur(
+                    niveau_data['pos_joueur'][0],
+                    niveau_data['pos_joueur'][1],
+                )
                 print(f"Niveau {niveau_actuel} chargé avec succès.")
-                afficher_message(ecran, f"NIVEAU {niveau_actuel} !", NOIR, VERT)
+                afficher_message(
+                    ecran, f"NIVEAU {niveau_actuel} !", NOIR, VERT
+                )
             except NiveauIntrouvableErreur as e:
                 message = (
                     f"FIN DU JEU : Niveau {niveau_actuel} introuvable. "
@@ -311,31 +339,41 @@ def main():
             )
             continue  
 
-        if images["fond"]:
-            ecran.blit(images["fond"], (0, 0))
+        if images[ElementDecor.VIDE]:
+            ecran.blit(images[ElementDecor.VIDE], (0, 0))
         else:
-            ecran.fill(COULEURS['.']) # Fond noir
+            ecran.fill(COULEURS[ElementDecor.VIDE]) # Fond noir
         
         for tuile in niveau_data['tuiles_sol']:
-            if images["bloc"]:
-                ecran.blit(images["bloc"], tuile)
+            if images[ElementDecor.MUR]:
+                ecran.blit(images[ElementDecor.MUR], tuile)
             else:
-                pygame.draw.rect(ecran, COULEURS['#'], tuile)   
+                pygame.draw.rect(ecran, COULEURS[ElementDecor.MUR], tuile)   
  
         if niveau_data['tuile_sortie']:
-            if images["sortie"]:
-                ecran.blit(images["sortie"], niveau_data["tuile_sortie"])
+            if images[ElementDecor.SORTIE]:
+                ecran.blit(
+                    images[ElementDecor.SORTIE],
+                    niveau_data["tuile_sortie"],
+                )
             else:
-                pygame.draw.rect(ecran, COULEURS['E'], niveau_data['tuile_sortie'])
-        
+                pygame.draw.rect(
+                    ecran,
+                    COULEURS[ElementDecor.SORTIE],
+                    niveau_data['tuile_sortie'],
+                )
         if joueur['rect']:
-            if images["joueur"]:
-                img_joueur = images["joueur"]
+            if images[ElementDecor.JOUEUR]:
+                img_joueur = images[ElementDecor.JOUEUR]
                 if joueur["direction"] == "gauche":
-                    img_joueur = pygame.transform.flip(images["joueur"], True, False)
+                    img_joueur = pygame.transform.flip(
+                        images[ElementDecor.JOUEUR], True, False
+                    )
                 ecran.blit(img_joueur, joueur["rect"])
             else:
-                pygame.draw.rect(ecran, COULEURS['P'], joueur['rect'])
+                pygame.draw.rect(
+                    ecran, COULEURS[ElementDecor.JOUEUR], joueur['rect']
+                )
         pygame.display.flip()
         clock.tick(FPS)
     pygame.quit()

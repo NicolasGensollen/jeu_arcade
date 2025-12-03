@@ -10,7 +10,10 @@ def charger_niveau(numero_niveau: int) -> str | None:
     nom_fichier = f"niveau_{numero_niveau}.txt"
     chemin_fichier = DOSSIER_NIVEAUX / nom_fichier
     if not chemin_fichier.exists():
-        print("ERREUR : Fichier introuvable. Veuillez vérifier le numéro de niveau et le chemin.")
+        print(
+            "ERREUR : Fichier introuvable. "
+            "Veuillez vérifier le numéro de niveau et le chemin."
+        )
         return None    
     try:
         contenu = chemin_fichier.read_text(encoding='utf-8')
@@ -19,7 +22,9 @@ def charger_niveau(numero_niveau: int) -> str | None:
         print("--------------------------")
         return contenu
     except Exception as e:
-        print(f"ERREUR de lecture : Une erreur inattendue s'est produite : {e}")
+        print(
+            f"ERREUR de lecture : Une erreur inattendue s'est produite : {e}"
+        )
         return None
     
 if __name__ == "__main__":

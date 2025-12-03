@@ -1,18 +1,32 @@
 from pathlib import Path
 import pygame
 import sys
+from enum import Enum
 
+NOM_DU_JEU = "The Arcade Game"
 ECRAN_LARGEUR, ECRAN_HAUTEUR = 800, 600
 TAILLE_TUILE = 40
 FPS = 60
 DOSSIER_NIVEAUX = Path("niveaux")
-CARACTERES_VALIDES = set(['#', 'P', 'E', '.'])
+
+class ElementDecor(Enum):
+    MUR = "#"
+    JOUEUR = "P"
+    SORTIE = "E"
+    VIDE = "."
+
+Couleur = tuple[int, int, int]
+GRIS: Couleur = (100, 100, 100)
+VERT: Couleur = (0, 200, 0)
+ROUGE: Couleur = (255, 0, 0)
+NOIR: Couleur = (0, 0, 0)
 COULEURS = {
-    '#': (100, 100, 100),  # Gris pour les blocs
-    'E': (0, 200, 0),      # Vert pour la sortie
-    'P': (255, 0, 0),      # Rouge pour le joueur
-    '.': (0, 0, 0)         # Noir pour l'arrière-plan
+    ElementDecor.MUR: GRIS,
+    ElementDecor.SORTIE: VERT,
+    ElementDecor.JOUEUR: ROUGE,
+    ElementDecor.VIDE: NOIR,
 }
+
 
 def creer_tuile(x_grille: int, y_grille: int) -> pygame.Rect:
     """Crée et retourne un objet pygame.Rect pour une tuile."""
@@ -34,12 +48,13 @@ def construire_niveau(donnees_texte: str) -> dict:
     for y, ligne in enumerate(lignes):
         for x, caractere in enumerate(ligne.strip()):
             rect = creer_tuile(x, y) 
+            caractere = ElementDecor(caractere)
             match caractere:
-                case "#":
+                case ElementDecor.MUR:
                     niveau_data['tuiles_sol'].append(rect)
-                case "E":
+                case ElementDecor.SORTIE:
                     niveau_data['tuile_sortie'] = rect
-                case "P":
+                case ElementDecor.JOUEUR:
                     niveau_data['pos_joueur'] = (rect.x, rect.y)
     if niveau_data['pos_joueur'] is None:
         raise ValueError("Erreur de Parsing: Position joueur 'P' manquante.")
@@ -55,7 +70,10 @@ def charger_niveau(numero_niveau: int) -> str | None:
     nom_fichier = f"niveau_{numero_niveau}.txt"
     chemin_fichier = DOSSIER_NIVEAUX / nom_fichier
     if not chemin_fichier.exists():
-        print("ERREUR : Fichier introuvable. Veuillez vérifier le numéro de niveau et le chemin.")
+        print(
+            "ERREUR : Fichier introuvable. "
+            "Veuillez vérifier le numéro de niveau et le chemin."
+        )
         return None    
     try:
         contenu = chemin_fichier.read_text(encoding='utf-8')
@@ -64,21 +82,22 @@ def charger_niveau(numero_niveau: int) -> str | None:
         print("--------------------------")
         return contenu
     except Exception as e:
-        print(f"ERREUR de lecture : Une erreur inattendue s'est produite : {e}")
+        print(
+            f"ERREUR de lecture : Une erreur inattendue s'est produite : {e}"
+        )
         return None
 
 
 def main():
     pygame.init()
     ecran = pygame.display.set_mode((ECRAN_LARGEUR, ECRAN_HAUTEUR))
-    pygame.display.set_caption("Jeu Arcade")
+    pygame.display.set_caption(NOM_DU_JEU)
     clock = pygame.time.Clock()
     
     niveau = charger_niveau(1)
     if niveau is None:
         print("Erreur critique: Impossible de charger niveau_1.txt")
         return
-
     try:
         niveau_data = construire_niveau(niveau)
     except ValueError as e:
@@ -99,13 +118,17 @@ def main():
             if event.type == pygame.QUIT:
                 jeu_en_cours = False
         
-        ecran.fill(COULEURS['.']) # Fond noir
+        ecran.fill(COULEURS[ElementDecor.VIDE]) # Fond noir
         
         for tuile in niveau_data['tuiles_sol']:
-            pygame.draw.rect(ecran, COULEURS['#'], tuile)    
+            pygame.draw.rect(ecran, COULEURS[ElementDecor.MUR], tuile)    
         if niveau_data['tuile_sortie']:
-            pygame.draw.rect(ecran, COULEURS['E'], niveau_data['tuile_sortie'])
-        pygame.draw.rect(ecran, COULEURS['P'], rect_joueur)
+            pygame.draw.rect(
+                ecran,
+                COULEURS[ElementDecor.SORTIE],
+                niveau_data['tuile_sortie'],
+            )
+        pygame.draw.rect(ecran, COULEURS[ElementDecor.JOUEUR], rect_joueur)
         pygame.display.flip()
         clock.tick(FPS)
     pygame.quit()

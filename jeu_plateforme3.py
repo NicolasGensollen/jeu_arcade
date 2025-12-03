@@ -1,17 +1,30 @@
 from pathlib import Path
 import pygame
 import sys
+from enum import Enum
 
+NOM_DU_JEU = "The Arcade Game"
 ECRAN_LARGEUR, ECRAN_HAUTEUR = 800, 600
 TAILLE_TUILE = 40
 FPS = 60
 DOSSIER_NIVEAUX = Path("niveaux")
-CARACTERES_VALIDES = set(['#', 'P', 'E', '.'])
+
+class ElementDecor(Enum):
+    MUR = "#"
+    JOUEUR = "P"
+    SORTIE = "E"
+    VIDE = "."
+
+Couleur = tuple[int, int, int]
+GRIS: Couleur = (100, 100, 100)
+VERT: Couleur = (0, 200, 0)
+ROUGE: Couleur = (255, 0, 0)
+NOIR: Couleur = (0, 0, 0)
 COULEURS = {
-    '#': (100, 100, 100),  # Gris pour les blocs
-    'E': (0, 200, 0),      # Vert pour la sortie
-    'P': (255, 0, 0),      # Rouge pour le joueur
-    '.': (0, 0, 0)         # Noir pour l'arrière-plan
+    ElementDecor.MUR: GRIS,
+    ElementDecor.SORTIE: VERT,
+    ElementDecor.JOUEUR: ROUGE,
+    ElementDecor.VIDE: NOIR,
 }
 
 class NiveauErreur(Exception):
@@ -20,12 +33,14 @@ class NiveauErreur(Exception):
 
 class NiveauIntrouvableErreur(NiveauErreur):
     """Levée quand le fichier n'existe pas."""
-    def __init__(self, chemin):
-        super().__init__(f"ERREUR FATALE : Le fichier '{chemin}' est introuvable.")
+    def __init__(self, chemin: str | Path):
+        super().__init__(
+            f"ERREUR FATALE : Le fichier '{chemin}' est introuvable."
+        )
 
 class CaractereInvalideErreur(NiveauErreur):
     """Levée quand un caractère inconnu est lu."""
-    def __init__(self, caractere, ligne, colonne):
+    def __init__(self, caractere: str, ligne: int, colonne: int):
         super().__init__(
             f"ERREUR DE SYNTAXE : Caractère interdit '{caractere}' "
             f"trouvé à la ligne {ligne+1}, colonne {colonne+1}."
@@ -33,7 +48,7 @@ class CaractereInvalideErreur(NiveauErreur):
 
 class PositionJoueurErreur(NiveauErreur):
     """Levée quand le nombre de joueurs 'P' est incorrect."""
-    def __init__(self, compte):
+    def __init__(self, compte: int):
         super().__init__(
             f"ERREUR DE LOGIQUE : Le niveau contient {compte} "
             f"départ(s) de joueur (1 seul requis)."
@@ -41,7 +56,7 @@ class PositionJoueurErreur(NiveauErreur):
 
 class TuileSortieErreur(NiveauErreur):
     """Levée quand le nombre de tuiles de sortie est incorrect."""
-    def __init__(self, compte):
+    def __init__(self, compte: int):
         super().__init__(
             f"ERREUR DE LOGIQUE : Le niveau contient {compte} "
             f"sorties (1 seule requise)."
@@ -70,15 +85,17 @@ def construire_niveau(donnees_texte: str) -> dict:
     for y, ligne in enumerate(lignes):
         for x, caractere in enumerate(ligne.strip()):
             rect = creer_tuile(x, y)
-            if caractere not in CARACTERES_VALIDES:
+            try:
+                caractere = ElementDecor(caractere)
+            except ValueError:
                 raise CaractereInvalideErreur(caractere, y, x)
             match caractere:
-                case "#":
+                case ElementDecor.MUR:
                     niveau_data['tuiles_sol'].append(rect)
-                case "E":
+                case ElementDecor.SORTIE:
                     niveau_data['tuile_sortie'] = rect
                     compte_sortie += 1
-                case "P":
+                case ElementDecor.JOUEUR:
                     niveau_data['pos_joueur'] = (rect.x, rect.y)
                     compte_joueur += 1
     if compte_joueur != 1:
@@ -105,7 +122,7 @@ def charger_niveau(numero_niveau: int) -> str:
 def main():
     pygame.init()
     ecran = pygame.display.set_mode((ECRAN_LARGEUR, ECRAN_HAUTEUR))
-    pygame.display.set_caption("Jeu Arcade")
+    pygame.display.set_caption(NOM_DU_JEU)
     clock = pygame.time.Clock()
     
     try:
@@ -137,13 +154,17 @@ def main():
             if event.type == pygame.QUIT:
                 jeu_en_cours = False
         
-        ecran.fill(COULEURS['.']) # Fond noir
+        ecran.fill(COULEURS[ElementDecor.VIDE]) # Fond noir
         
         for tuile in niveau_data['tuiles_sol']:
-            pygame.draw.rect(ecran, COULEURS['#'], tuile)    
+            pygame.draw.rect(ecran, COULEURS[ElementDecor.MUR], tuile)    
         if niveau_data['tuile_sortie']:
-            pygame.draw.rect(ecran, COULEURS['E'], niveau_data['tuile_sortie'])
-        pygame.draw.rect(ecran, COULEURS['P'], rect_joueur)
+            pygame.draw.rect(
+                ecran,
+                COULEURS[ElementDecor.SORTIE],
+                niveau_data['tuile_sortie'],
+            )
+        pygame.draw.rect(ecran, COULEURS[ElementDecor.JOUEUR], rect_joueur)
         pygame.display.flip()
         clock.tick(FPS)
     pygame.quit()
